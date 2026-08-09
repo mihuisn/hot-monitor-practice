@@ -1,6 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import { healthRouter } from './routes/health.js'
+import { keywordRouter } from './routes/keywords.js'
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -9,6 +10,7 @@ app.use(cors())
 app.use(express.json())
 
 app.use('/api/health', healthRouter)
+app.use('/api/keywords', keywordRouter)
 
 app.get('/', (_req, res) => {
   res.json({ message: 'Hot Monitor API Server' })
