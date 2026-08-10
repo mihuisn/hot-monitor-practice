@@ -1,26 +1,34 @@
 import { prisma } from '../lib/prisma.js'
-import { z } from 'zod'
 
-// Zod validation schemas
-export const CreateKeywordSchema = z.object({
-  text: z.string().min(1, '关键词文本不能为空'),
-  category: z.string().optional(),
-  isActive: z.boolean().default(true),
-})
+// ---- 类型定义 ----
 
-export const GetKeywordsQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(20),
-  search: z.string().optional(),
-  category: z.string().optional(),
-  isActive: z.enum(['true', 'false']).optional().transform(v => v === 'true'),
-  sortBy: z.enum(['createdAt', 'updatedAt', 'text']).default('createdAt'),
-  sortOrder: z.enum(['asc', 'desc']).default('desc'),
-})
+// 创建关键词时的入参类型：
+export interface CreateKeywordInput {
+  text: string
+  category?: string
+  isActive: boolean
+}
 
-export type CreateKeywordInput = z.infer<typeof CreateKeywordSchema>
-export type GetKeywordsQuery = z.infer<typeof GetKeywordsQuerySchema>
+// 查询关键词列表时的入参类型，支持分页/搜索/过滤/排序
+export interface GetKeywordsQuery {
+  page: number
+  pageSize: number
+  search?: string
+  category?: string
+  isActive?: boolean
+  sortBy: 'createdAt' | 'updatedAt' | 'text'
+  sortOrder: 'asc' | 'desc'
+}
 
+// 更新关键词时的入参类型，所有字段都是可选的， category 允许传 null 来清空分类。
+export interface UpdateKeywordInput {
+  text?: string
+  category?: string | null
+  isActive?: boolean
+}
+
+// ---- 业务逻辑 ----
+// 单个关键词的返回结构，额外带 _count.hotspots 表示该关键词关联的热点数量。
 interface KeywordWithCount {
   id: string
   text: string
@@ -33,6 +41,7 @@ interface KeywordWithCount {
   }
 }
 
+// 列表查询的返回结构
 interface GetKeywordsResponse {
   items: KeywordWithCount[]
   total: number
@@ -50,10 +59,9 @@ export async function getKeywords(query: GetKeywordsQuery): Promise<GetKeywordsR
   // 构建查询条件
   const where: any = {}
 
+  //search 用 contains 做模糊匹配
   if (search) {
-    where.text = {
-      contains: search,
-    }
+    where.text = { contains: search }
   }
 
   if (category) {
@@ -64,10 +72,8 @@ export async function getKeywords(query: GetKeywordsQuery): Promise<GetKeywordsR
     where.isActive = isActive
   }
 
-  // 获取总数
   const total = await prisma.keyword.count({ where })
 
-  // 获取分页数据
   const items = await prisma.keyword.findMany({
     where,
     select: {
@@ -90,26 +96,38 @@ export async function getKeywords(query: GetKeywordsQuery): Promise<GetKeywordsR
     take: pageSize,
   })
 
-  const totalPages = Math.ceil(total / pageSize)
-
   return {
     items: items as KeywordWithCount[],
     total,
     page,
     pageSize,
-    totalPages,
+    totalPages: Math.ceil(total / pageSize),
   }
 }
 
 /**
  * 创建新的关键词
  */
+// createKeyword input 就是 Routes 层传过来的那个对象 { text: '...', category: '...', isActive: true }
 export async function createKeyword(input: CreateKeywordInput) {
   const keyword = await prisma.keyword.create({
     data: {
       text: input.text,
       category: input.category,
       isActive: input.isActive,
+    },
+    select: {
+      id: true,
+      text: true,
+      category: true,
+      isActive: true,
+      createdAt: true,
+      updatedAt: true,
+      _count: {
+        select: {
+          hotspots: true,
+        },
+      },
     },
   })
 
@@ -124,4 +142,23 @@ export async function keywordExists(text: string): Promise<boolean> {
     where: { text },
   })
   return !!keyword
+}
+
+/**
+ * 更新关键词
+ */
+export async function updateKeyword(id: string, input: UpdateKeywordInput) {
+  return prisma.keyword.update({
+    where: { id },
+    data: input,
+  })
+}
+
+/**
+ * 删除关键词（关联的热点 keywordId 会被置空，不会级联删除）
+ */
+export async function deleteKeyword(id: string) {
+  return prisma.keyword.delete({
+    where: { id },
+  })
 }
