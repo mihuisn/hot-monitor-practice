@@ -5,15 +5,15 @@ import { prisma } from '../lib/prisma.js'
 // 查询热点列表时的入参类型，支持分页/过滤/排序
 export interface GetHotspotsQuery {
   page: number
-  pageSize: number
+  limit: number
   source?: string
   keyword?: string
   keywordId?: string
   isReal?: boolean
   importance?: string
   authorUsername?: string
-  startAt?: Date
-  endAt?: Date
+  timeFrom?: Date
+  timeTo?: Date
   search?: string
   sortBy: 'publishedAt' | 'relevance' | 'createdAt'
   sortOrder: 'asc' | 'desc'
@@ -51,12 +51,19 @@ interface HotspotItem {
   keyword: { id: string; text: string } | null
 }
 
+interface HotspotStats {
+  todayNew: number
+  urgentCount: number
+  highCount: number
+}
+
 interface GetHotspotsResponse {
   items: HotspotItem[]
   total: number
   page: number
-  pageSize: number
+  limit: number
   totalPages: number
+  stats: HotspotStats
 }
 
 /**
@@ -65,15 +72,15 @@ interface GetHotspotsResponse {
 export async function getHotspots(query: GetHotspotsQuery): Promise<GetHotspotsResponse> {
   const {
     page,
-    pageSize,
+    limit,
     source,
     keyword,
     keywordId,
     isReal,
     importance,
     authorUsername,
-    startAt,
-    endAt,
+    timeFrom,
+    timeTo,
     search,
     sortBy,
     sortOrder,
@@ -109,10 +116,10 @@ export async function getHotspots(query: GetHotspotsQuery): Promise<GetHotspotsR
   }
 
   // 发布时间区间过滤
-  if (startAt || endAt) {
+  if (timeFrom || timeTo) {
     where.publishedAt = {}
-    if (startAt) where.publishedAt.gte = startAt
-    if (endAt) where.publishedAt.lte = endAt
+    if (timeFrom) where.publishedAt.gte = timeFrom
+    if (timeTo) where.publishedAt.lte = timeTo
   }
 
   // 标题或内容全文搜索（SQLite 使用 contains 模糊匹配）
@@ -165,15 +172,27 @@ export async function getHotspots(query: GetHotspotsQuery): Promise<GetHotspotsR
     orderBy: {
       [sortBy]: sortOrder,
     },
-    skip: (page - 1) * pageSize,
-    take: pageSize,
+    skip: (page - 1) * limit,
+    take: limit,
   })
+
+  // 并行查询聚合统计（今日新增 / 紧急 / 高重要性）
+  // 复用同一个 where 条件，确保统计口径与列表一致
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+  const [todayNew, urgentCount, highCount] = await Promise.all([
+    prisma.hotspot.count({ where: { ...where, createdAt: { gte: todayStart } } }),
+    prisma.hotspot.count({ where: { ...where, importance: 'urgent' } }),
+    prisma.hotspot.count({ where: { ...where, importance: 'high' } }),
+  ])
 
   return {
     items: items as HotspotItem[],
     total,
     page,
-    pageSize,
-    totalPages: Math.ceil(total / pageSize),
+    limit,
+    totalPages: Math.ceil(total / limit),
+    stats: { todayNew, urgentCount, highCount },
   }
 }

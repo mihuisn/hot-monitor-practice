@@ -49,22 +49,55 @@
 
 #### 描述
 
-获取热点列表，支持分页和过滤。
+获取热点列表，支持分页、多维度过滤、排序和聚合统计。
 
 #### Query 参数
 
-- `page` (Int, 可选): 页码，默认 `1`。
-- `pageSize` (Int, 可选): 每页数量，默认 `20`。
-- `source` (String, 可选): 按来源过滤，如 `twitter`、`bing`、`google`。
-- `keyword` (String, 可选): 关键词文本过滤。
-- `keywordId` (String, 可选): 关键词 ID 过滤。
-- `isReal` (Boolean, 可选): 是否真实热点过滤。
-- `importance` (String, 可选): 重要性过滤，如 `low`、`medium`、`high`。
-- `authorUsername` (String, 可选): 作者用户名过滤。
-- `startAt` / `endAt` (ISO 8601 DateTime, 可选): 按发布时间区间过滤。
-- `search` (String, 可选): 标题或内容全文搜索。
-- `sortBy` (String, 可选): 排序字段，如 `publishedAt`、`relevance`、`createdAt`。
-- `sortOrder` (String, 可选): `asc` 或 `desc`，默认 `desc`。
+| 参数 | 类型 | 可选 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `page` | Int | 是 | `1` | 页码，最小值 1 |
+| `limit` | Int | 是 | `20` | 每页数量，范围 1-100 |
+| `source` | String | 是 | - | 按来源过滤：`twitter` / `weibo` / `bilibili` / `hackernews` / `sogou` / `bing` / `google` / `duckduckgo` |
+| `importance` | String | 是 | - | 重要性过滤：`low` / `medium` / `high` / `urgent` |
+| `keywordId` | String | 是 | - | 关键词 ID 过滤（用于按用户打开的监控词查询） |
+| `isReal` | String | 是 | - | 是否真实热点，传 `'true'` 或 `'false'`（字符串） |
+| `timeRange` | String | 是 | - | 时间预设：`1h` / `24h` / `7d` / `30d`，等价于设置 `timeFrom = now - duration` |
+| `timeFrom` | ISO 8601 | 是 | - | 发布时间起始（与 `timeRange` 同时传时，以 `timeFrom` 为准） |
+| `timeTo` | ISO 8601 | 是 | - | 发布时间截止 |
+| `sortBy` | String | 是 | `createdAt` | 排序字段：`publishedAt` / `relevance` / `createdAt` |
+| `sortOrder` | String | 是 | `desc` | 排序方向：`asc` / `desc` |
+
+> **时间过滤优先级**：显式 `timeFrom` > `timeRange` 预设。两者都没传则不过滤时间。
+
+#### 请求示例
+
+```bash
+# 基础查询：第 1 页，每页 20 条
+GET /api/hotspots
+
+# 按关键词 ID 查最近 24 小时高重要性热点
+GET /api/hotspots?keywordId=abc-123&timeRange=24h&importance=high
+
+# 按来源 + 自定义时间区间 + 相关性排序
+GET /api/hotspots?source=twitter&timeFrom=2026-08-01T00:00:00Z&timeTo=2026-08-10T00:00:00Z&sortBy=relevance&sortOrder=desc
+```
+
+#### 响应结构
+
+```typescript
+{
+  items: HotspotItem[]      // 当前页的热点列表
+  total: number             // 符合条件的总记录数
+  page: number              // 当前页码
+  limit: number             // 每页数量
+  totalPages: number        // 总页数
+  stats: {                  // 全库聚合统计（复用过滤条件，不受分页影响）
+    todayNew: number        // 今日新增（createdAt >= 今日 0:00）
+    urgentCount: number     // 紧急热点数（importance = 'urgent'）
+    highCount: number       // 高重要性热点数（importance = 'high'）
+  }
+}
+```
 
 #### 响应示例
 
@@ -107,8 +140,22 @@
   ],
   "total": 123,
   "page": 1,
-  "pageSize": 20,
-  "totalPages": 7
+  "limit": 20,
+  "totalPages": 7,
+  "stats": {
+    "todayNew": 18,
+    "urgentCount": 3,
+    "highCount": 12
+  }
+}
+```
+
+#### 错误响应
+
+```json
+{
+  "code": 500,
+  "message": "Internal Server Error"
 }
 ```
 

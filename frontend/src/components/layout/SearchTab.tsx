@@ -15,35 +15,7 @@ interface SearchResult {
   summary: string
 }
 
-const mockResults: SearchResult[] = [
-  { 
-    id: 1, 
-    title: '人工智能大模型最新突破：GPT-5 即将发布', 
-    source: '科技日报', 
-    date: '2026-08-07', 
-    heat: 98765, 
-    url: '#',
-    summary: '据最新消息，OpenAI 正在准备发布下一代大模型 GPT-5，预计将在多模态能力上实现重大突破...'
-  },
-  { 
-    id: 2, 
-    title: '新能源汽车市场持续增长，比亚迪领跑全球', 
-    source: '经济观察报', 
-    date: '2026-08-06', 
-    heat: 87432, 
-    url: '#',
-    summary: '比亚迪在全球新能源汽车市场的份额持续扩大，超越特斯拉成为全球销量冠军...'
-  },
-  { 
-    id: 3, 
-    title: '科技创新推动产业升级，数字经济成为新引擎', 
-    source: '人民日报', 
-    date: '2026-08-05', 
-    heat: 65342, 
-    url: '#',
-    summary: '数字经济正在成为推动我国经济发展的新引擎，人工智能、大数据等技术加速与实体经济融合...'
-  },
-]
+const mockResults: SearchResult[] = []
 
 export function SearchTab() {
   const [query, setQuery] = useState('')

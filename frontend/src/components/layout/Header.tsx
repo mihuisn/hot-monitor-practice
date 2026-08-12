@@ -1,8 +1,25 @@
-import { Flame, Bell, Settings, Search } from 'lucide-react'
+import { useState } from 'react'
+import { Flame, Bell, Settings, Search, Radar, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { runCollect } from '@/api/hotspots'
 
 export function Header() {
+  const [scanning, setScanning] = useState(false)
+
+  // 点击"立即扫描"：触发后端采集，完成后派发自定义事件通知 HotTopicsTab 刷新
+  const handleScan = async () => {
+    setScanning(true)
+    try {
+      await runCollect()
+      window.dispatchEvent(new CustomEvent('collect:done'))
+    } catch (err) {
+      console.error('扫描失败:', err)
+    } finally {
+      setScanning(false)
+    }
+  }
+
   return (
     <header className="border-b bg-background/80 backdrop-blur-sm sticky top-0 z-50">
       <div className="container mx-auto px-4">
@@ -29,6 +46,20 @@ export function Header() {
           </div>
 
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onPress={handleScan}
+              isDisabled={scanning}
+              className="gap-1.5"
+            >
+              {scanning ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Radar className="h-4 w-4" />
+              )}
+              {scanning ? '扫描中...' : '立即扫描'}
+            </Button>
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5" />
               <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-red-500 text-white">
